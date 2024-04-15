@@ -13,7 +13,7 @@ from sqlalchemy import (
     DateTime,
 )
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.sql import select
+from sqlalchemy.sql import select, update, delete
 from datetime import datetime
 from pydantic import BaseModel, field_validator
 from config import (
@@ -128,7 +128,20 @@ async def send_data_to_subscribers(user_id: int, data):
 async def create_processed_agent_data(data: List[ProcessedAgentData]):
     # Insert data to database
     # Send data to subscribers
-    pass
+    with SessionLocal() as session:
+        for record in data:
+            query = processed_agent_data.insert().values(
+                road_state=record.road_state,
+                user_id=record.agent_data.user_id,
+                x=record.agent_data.accelerometer.x,
+                y=record.agent_data.accelerometer.y,
+                z=record.agent_data.accelerometer.z,
+                latitude=record.agent_data.gps.latitude,
+                longitude=record.agent_data.gps.latitude,
+                timestamp=record.agent_data.timestamp,
+            )
+            session.execute(query)
+        session.commit()
 
 
 @app.get(
@@ -137,7 +150,14 @@ async def create_processed_agent_data(data: List[ProcessedAgentData]):
 )
 def read_processed_agent_data(processed_agent_data_id: int):
     # Get data by id
-    pass
+    with SessionLocal() as session:
+        query = select(processed_agent_data).where(
+            processed_agent_data.c.id == processed_agent_data_id)
+        result = session.execute(query).first()
+
+        if result is None:
+            raise HTTPException(status_code=404, detail="Item not found")
+    return result
 
 
 @app.get("/processed_agent_data/", response_model=list[ProcessedAgentDataInDB])
@@ -152,7 +172,26 @@ def list_processed_agent_data():
 )
 def update_processed_agent_data(processed_agent_data_id: int, data: ProcessedAgentData):
     # Update data
-    pass
+    with SessionLocal() as session:
+        query = update(processed_agent_data).where(
+            processed_agent_data.c.id == processed_agent_data_id
+        ).values(
+            road_state=data.road_state,
+            user_id=data.agent_data.user_id,
+            x=data.agent_data.accelerometer.x,
+            y=data.agent_data.accelerometer.y,
+            z=data.agent_data.accelerometer.z,
+            latitude=data.agent_data.gps.latitude,
+            longitude=data.agent_data.gps.latitude,
+            timestamp=data.agent_data.timestamp,
+        )
+        session.execute(query)
+        session.commit()
+
+        query = select(processed_agent_data).where(
+            processed_agent_data.c.id == processed_agent_data_id)
+        result = session.execute(query).first()
+    return result
 
 
 @app.delete(
@@ -161,7 +200,16 @@ def update_processed_agent_data(processed_agent_data_id: int, data: ProcessedAge
 )
 def delete_processed_agent_data(processed_agent_data_id: int):
     # Delete by id
-    pass
+    with SessionLocal() as session:
+        query = select(processed_agent_data).where(
+            processed_agent_data.c.id == processed_agent_data_id)
+        result = session.execute(query).first()
+
+        query = delete(processed_agent_data).where(
+            processed_agent_data.c.id == processed_agent_data_id)
+        session.execute(query)
+        session.commit()
+    return result
 
 
 if __name__ == "__main__":
